@@ -1,0 +1,5 @@
+[wokwi]
+version = 1
+firmware = 'main\build\esp32.esp32.esp32doit-devkit-v1\main.ino.bin'
+elf = 'main\build\esp32.esp32.esp32doit-devkit-v1\main.ino.elf'
+rfc2217ServerPort = 4000

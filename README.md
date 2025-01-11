@@ -25,3 +25,6 @@ This is an example of how to list things you need to use the software and how to
 3. Open _diagram.json_ in VSCode.
 4. Run the Simulation
 5. Open Serial Monitor extension and connect over TCP to _localhost:4000_
+
+### Simulation View
+![Screenshot 2025-01-11 014835](https://github.com/user-attachments/assets/fe1dc2e2-f6ad-47cb-a63f-e48b6fb32aa3)

@@ -13,7 +13,7 @@ This is an example of how to list things you need to use the software and how to
 
 1. Clone the repo
    ```sh
-   git clone https://github.com/github_username/repo_name.git](https://github.com/jigiciak/AudioMixer_ESP.git
+   git clone https://github.com/jigiciak/AudioMixer_ESP.git
    ```
 2. Install Python
 3. Install ArduinoIDE

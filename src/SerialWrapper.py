@@ -16,7 +16,7 @@ class SerialWrapper:
     #     self.device.write(bytes(b'START'))
 
     def read_data(self):
-        return self.device.read()
+        return self.device.readline()
 
     def list_ports(self):
         for i, port in enumerate(serial.tools.list_ports.comports()):

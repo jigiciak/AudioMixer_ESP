@@ -1,165 +1,183 @@
 #include <Wire.h>
-#include <Adafruit_SSD1306.h>
 #include <ezButton.h>
 #include <FastLED.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SH110X.h>
+#include <DHT22.h>
+#include <Defines.h>
 
-#define BTN1 2
-#define BTN2 4
-#define BTN3 5
-#define BTN4 18
-ezButton button1(BTN1);
-ezButton button2(BTN2);
-ezButton button3(BTN3);
-ezButton button4(BTN4);
-
-#define PTN1 33
-#define PTN2 32
-#define PTN3 35
-#define PTN4 34
-
-#define SCR_H 64
-#define SCR_W 128
-
-#define LED_PIN 25
-#define LED_NUM 10
-
-#define I2C_SDA 21
-#define I2C_SCL 22
-
-Adafruit_SSD1306 display(SCR_W, SCR_H, &Wire, -1);
+ezButton btn[4] = { BTN1, BTN2, BTN3, BTN4 };
+Adafruit_SH1106G display = Adafruit_SH1106G(SCR_W, SCR_H, &Wire, -1);
+DHT22 dht22(DHT_PIN); 
 CRGB leds[LED_NUM];
 
-void setup() {
-  button1.setDebounceTime(50);
-  button2.setDebounceTime(50);
-  button3.setDebounceTime(50);
-  button4.setDebounceTime(50);
+int ptn[4] = { PTN1, PTN2, PTN3, PTN4 };
+int ptn_val[4] = { 0, 0, 0, 0 };
+int app_mute[4] = { 0, 0, 0, 0 };
+int app_solo[4] = { 0, 0, 0, 0 };
+int lastBTNstate[4];
+int currBTNstate[4] = { LOW, LOW, LOW, LOW };
+String apps[4];
+String brightness[10];
+// char apps_all[][];
 
-  pinMode(PTN1, INPUT);
-  pinMode(PTN2, INPUT);
-  pinMode(PTN3, INPUT);
-  pinMode(PTN4, INPUT);
-  FastLED.addLeds<WS2812B, LED_PIN, GRB>(leds, LED_NUM);
-  // FastLED.addLeds<NEOPIXEL, LED_PIN>(leds, LED_NUM);
+unsigned long dth_time = millis();
+
+void setup() {
+  // for (int i = 0; i < 4; i++) {
+  //   btn[i].setDebounceTime(50);
+  // }
 
   Serial.begin(115200);
-  Wire.begin(I2C_SDA, I2C_SCL);
   Serial.println("Hello, ESP32!");
-  
-  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3D)) { // Address 0x3D for 128x64
-    Serial.println(F("SSD1306 allocation failed"));
-    for(;;); // Don't proceed, loop forever
-  }
-}
 
-int ptn1_val;
-int ptn2_val;
-int ptn3_val;
-int ptn4_val;
-
-int app1_mute = 0;
-int app2_mute = 0;
-int app3_mute = 0;
-int app4_mute = 0;
-
-bool app1_solo;
-bool app2_solo;
-bool app3_solo;
-bool app4_solo;
-
-int lastBTN1state;
-int lastBTN2state;
-int lastBTN3state;
-int lastBTN4state;
-
-int currentBTN1state = button1.getState();
-int currentBTN2state = button2.getState();
-int currentBTN3state = button3.getState();
-int currentBTN4state = button4.getState();
-
-void led_control(int set_to) {
-  for (int i = 0; i < LED_NUM; i++) {
-    switch (set_to) {
-      case '1':
-        leds[i] = CRGB::White;
-        break;
-      case '2':
-        leds[i] = CRGB::Green;
-        break;
-    }
-  }
-  FastLED.show();
-}
-
-void loop() {
-  lastBTN1state = currentBTN1state;
-  lastBTN2state = currentBTN2state;
-  lastBTN3state = currentBTN3state;
-  lastBTN4state = currentBTN4state;
-
-  button1.loop();
-  button2.loop();
-  button3.loop();
-  button4.loop();
-
-  currentBTN1state = button1.getState();
-  currentBTN2state = button2.getState();
-  currentBTN3state = button3.getState();
-  currentBTN4state = button4.getState();
-
-  ptn1_val = analogRead(PTN1)/32;
-  ptn2_val = analogRead(PTN2)/32;
-  ptn3_val = analogRead(PTN3)/32;
-  ptn4_val = analogRead(PTN4)/32;
-
-  if(lastBTN1state == HIGH && currentBTN1state == LOW) {
-    app1_mute = !app1_mute;
-  }
-  if(lastBTN2state == HIGH && currentBTN2state == LOW) {
-    app2_mute = !app2_mute;
-  }
-  if(lastBTN3state == HIGH && currentBTN3state == LOW) {
-    app3_mute = !app3_mute;
-  }
-  if(lastBTN4state == HIGH && currentBTN4state == LOW) {
-    app4_mute = !app4_mute;
+  if(!display.begin(0x3C, true)) {
+    Serial.println(F("SH1106 allocation failed"));
+    for(;;);
   }
   
   display.clearDisplay();
   display.setTextSize (1);
-  display.setTextColor(WHITE);
+  display.setTextColor(SH110X_WHITE);
+
+  display.setCursor (0, 8*0);
+  display.print("Initialization...");
+  display.display();
+
+  FastLED.addLeds<WS2812B, LED_PIN, GRB>(leds, LED_NUM);
+  FastLED.setBrightness(32);
+
+  display.setCursor (0, 8*1);
+  display.print("Ending previous session...");
+  display.display();
+
+  while (Serial.readStringUntil('\r') != "ENDED") {
+    Serial.println("END");
+  }
+  
+  display.print("Done.");
+  display.display();
+
+  display.setCursor (0, 8*3);
+  display.print("Fetching app names...");
+  display.display();
+
+  while (Serial.readStringUntil('\r') != "apps") {
+    Serial.println("APPS");
+  }
+
+  read_apps();
+  
+  display.print("Done.");
+  display.display();
+  
+  Serial.println("BEGIN");
+}
+
+void loop() {
+  // serial_read();
+
+  handle_potentiometers(apps);
+  handle_buttons();
+
+  temp_humid();
+
+  if (Serial.available() > 0) {
+    String data_in = Serial.readStringUntil('\r');
+    if (data_in == "apps") {
+      read_apps();
+    }
+    if (data_in == "leds") {
+      read_led();
+    }
+  }
+
+  draw_mixer();
+
+  serial_send(ptn_val, app_mute, app_solo);
+}
+
+void draw_mixer(){
+
+  display.clearDisplay();
+  display.setTextSize (1);
+  display.setTextColor(SH110X_WHITE);
+  
   display.setCursor (0, 8*0);
   display.print("Hello!");
-  display.setCursor (0, 8*1);
-  display.print("APP1 Vol: ");
-  display.print(ptn1_val);
-  display.setCursor (0, 8*2);
-  display.print("APP2 Vol: ");
-  display.print(ptn2_val);
-  display.setCursor (0, 8*3);
-  display.print("APP3 Vol: ");
-  display.print(ptn3_val);
-  display.setCursor (0, 8*4);
-  display.print("APP4 Vol: ");
-  display.print(ptn4_val);
-  if (app1_mute == 1) {
-    display.setCursor (80, 8*1);
-    display.print("Muted");
-  }
-  if (app2_mute == 1) {
-    display.setCursor (80, 8*2);
-    display.print("Muted");
-  }
-  if (app3_mute == 1) {
-    display.setCursor (80, 8*3);
-    display.print("Muted");
-  }
-  if (app4_mute == 1) {
-    display.setCursor (80, 8*4);
-    display.print("Muted");
+
+  for (int i = 0; i < 4; i++) {
+    display.setCursor (0, 8*(i+1));
+    display.print(apps[i]);
+    display.print(": ");
+    display.print(ptn_val[i]);
+    display.print("%");
+
+    if (app_mute[i] == 1){
+      display.setCursor (120, 8*(i+1));
+      display.print("M");
+    }
   }
   display.display();
-  if (Serial.available()) {
-    led_control(Serial.read());
-  }  
+}
+
+void handle_potentiometers(String apps[4]){
+  for (int i = 0; i < 4; i++) {
+    ptn_val[i] = analogRead(ptn[i])*101/4096;
+  }
+}
+
+void handle_buttons(){
+  // buttons' loop
+  for (int i = 0; i < 4; i++) {
+    lastBTNstate[i] = currBTNstate[i];
+    btn[i].loop();
+    currBTNstate[i] = btn[i].getState();
+
+    if(lastBTNstate[i] == HIGH && currBTNstate[i] == LOW) {
+      app_mute[i] = !app_mute[i];
+    }
+  }
+}
+
+void serial_send(int vol[4], int mute[4], int solo[4]){
+  Serial.print("START");
+  Serial.print(",");
+  for (int i = 0; i < 4; i++) {
+    Serial.print(vol[i]);
+    Serial.print(",");
+  }
+  for (int i = 0; i < 4; i++) {
+    Serial.print(mute[i]);
+    Serial.print(",");
+  }
+  for (int i = 0; i < 4; i++) {
+    Serial.print(solo[i]);
+    Serial.print(",");
+  }
+  Serial.println("STOP");
+}
+
+void read_apps(){
+    String data_in = Serial.readStringUntil('\r');
+    int r = 0, t = 0;
+    for (int i = 0; i < data_in.length(); i++) {
+      if(data_in[i] == ',') {
+        if (i-r > 1) {
+          apps[t] = data_in.substring(r,i);
+          t++;
+        }
+        r = (i+1);
+      }
+    }
+}
+
+void read_led(){
+  for (int i = 0; i < 10; i++) {
+    int val = Serial.read();
+    leds[i].r = val;
+    leds[i].g = val;
+    leds[i].b = val;
+  }
+  FastLED.show();
 }
